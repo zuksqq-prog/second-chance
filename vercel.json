@@ -1,0 +1,10 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "buildCommand": "npm run build",
+  "crons": [{ "path": "/api/cron/reconcile", "schedule": "*/5 * * * *" }],
+  "functions": {
+    "src/app/api/trade/real/execute/route.ts": { "maxDuration": 60 },
+    "src/app/api/cron/reconcile/route.ts": { "maxDuration": 60 }
+  }
+}
