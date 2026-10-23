@@ -25,7 +25,8 @@ The migration creates all tables, the partial unique index for one active thesis
 2. Set environment variables from `.env.example` for Production (and Preview if you want previews to work):
    `DATABASE_URL`, `SESSION_SECRET`, `HELIUS_API_KEY`, `JUPITER_API_KEY`, `CRON_SECRET`, and leave `REAL_TRADING_ENABLED=false`.
 3. Deploy. Check `https://<your-domain>/api/health` returns `{"ok":true}`.
-4. `vercel.json` registers a cron every 5 minutes on `/api/cron/reconcile` that settles pending real trades and expires stale intents. Vercel sends `CRON_SECRET` as a bearer token automatically when the variable is set. (Cron frequency depends on your Vercel plan.)
+4. `vercel.json` registers a daily cron on `/api/cron/reconcile` (the Hobby plan allows daily only) that settles pending real trades and expires stale intents. Pending trades also reconcile whenever the user opens the app, so daily is a backstop. On Vercel Pro, change the schedule to `*/5 * * * *`. Vercel sends `CRON_SECRET` as a bearer token automatically when the variable is set.
+   Migrations run automatically on every Vercel build (`npm run vercel-build`), so the database is created on first deploy.
 5. From your laptop, run `npm run smoke` with the same `HELIUS_API_KEY`/`JUPITER_API_KEY` to confirm every provider responds.
 
 ## 4. Other hosts
