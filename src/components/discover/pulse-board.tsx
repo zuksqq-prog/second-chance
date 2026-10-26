@@ -74,7 +74,7 @@ export function PulseBoard() {
   return (
     <div className="flex h-full min-h-0 flex-col">
       {data?.notes?.length ? <p className="border-b border-line bg-signal-soft px-3 py-1 text-2xs text-signal">{data.notes.join(" ")}</p> : null}
-      {error && !data && <p className="border-b border-line bg-sell-soft px-3 py-1.5 text-xs text-sell">Live launch data is unavailable right now: {(error as Error).message}</p>}
+      {error && !data && <p className="border-b border-line bg-signal-soft px-3 py-1.5 text-xs text-signal">Connecting to live launch data… The free data provider is busy; retrying every few seconds.</p>}
       {/* phone: one column at a time */}
       <div className="flex border-b border-line md:hidden">
         {COLS.map((c) => (

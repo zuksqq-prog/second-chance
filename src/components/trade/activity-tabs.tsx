@@ -126,7 +126,7 @@ function TradesFeed({ token, data, error, mine }: { token: TokenSnapshot; data?:
   }, [data]);
   const now = Date.now();
 
-  if (error && !data) return <Note tone="error">Live trades are unavailable right now: {(error as Error).message}</Note>;
+  if (error && !data) return <Note>Connecting to the live trade feed… The free data provider is busy; retrying every few seconds.</Note>;
   if (!data) return <SkeletonRows />;
 
   return (
