@@ -59,9 +59,11 @@ export function PulseFiltersPanel({
   const [preset, setPreset] = useState<number | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  const appliedRef = useRef(applied);
+  appliedRef.current = applied;
   useEffect(() => {
     if (open) {
-      setDraft(applied);
+      setDraft(appliedRef.current);
       setCol(initialCol);
       try {
         const p = Number(localStorage.getItem("sc.pulsePreset.active"));
@@ -70,7 +72,7 @@ export function PulseFiltersPanel({
         /* ignore */
       }
     }
-  }, [open, applied, initialCol]);
+  }, [open, initialCol]);
 
   const f = draft[col];
   const set = (patch: Partial<PulseFilter>) => setDraft((d) => ({ ...d, [col]: { ...d[col], ...patch } }));

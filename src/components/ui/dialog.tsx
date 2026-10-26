@@ -18,13 +18,17 @@ export function Dialog({
   labelledBy?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  // Keep the latest onClose without re-running the focus logic when the parent re-renders
+  // (parents often pass an inline function and refresh on a timer).
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
   useEffect(() => {
     if (!open) return;
     const prev = document.activeElement as HTMLElement | null;
     const el = ref.current;
     el?.querySelector<HTMLElement>("[data-autofocus]")?.focus() ?? el?.focus();
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") onCloseRef.current();
       if (e.key === "Tab" && el) {
         const f = el.querySelectorAll<HTMLElement>('button,[href],input,textarea,select,[tabindex]:not([tabindex="-1"])');
         if (!f.length) return;
@@ -47,7 +51,7 @@ export function Dialog({
       document.body.style.overflow = overflow;
       prev?.focus();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
   return (
