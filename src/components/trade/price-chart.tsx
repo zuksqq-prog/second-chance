@@ -71,7 +71,8 @@ export function PriceChart({ token, thesis, trades }: { token: TokenSnapshot; th
     (async () => {
       const lc = await import("lightweight-charts");
       if (disposed || !el.current) return;
-      const fmt = (p: number) => (factorRef.current === 1 ? tokenPrice(p) : compactUsd(p));
+      // Prices can't go negative; the margin under the candles shouldn't label as if they could.
+      const fmt = (p: number) => (p < 0 ? "" : factorRef.current === 1 ? tokenPrice(p) : compactUsd(p));
       const chart = lc.createChart(el.current, {
         autoSize: true,
         layout: { background: { type: lc.ColorType.Solid, color: C.bg }, textColor: C.text, fontFamily: "'IBM Plex Sans', system-ui, sans-serif", fontSize: 11 },
@@ -334,7 +335,7 @@ export function PriceChart({ token, thesis, trades }: { token: TokenSnapshot; th
       <div ref={wrap} className="relative min-h-0 flex-1 overflow-hidden">
         <div ref={el} className="absolute inset-0" />
         {/* bubble overlay */}
-        <div className="pointer-events-none absolute inset-0">
+        <div className="pointer-events-none absolute inset-0 z-[5]">
           {positions.map(({ key, x, y, b }) => (
             <span
               key={key}
