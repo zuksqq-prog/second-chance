@@ -186,7 +186,7 @@ function Column({
   return (
     <section className={cn("flex min-h-0 flex-col overflow-hidden rounded-lg border border-line bg-ink-1", className)} aria-label={title}>
       <header className="flex h-11 shrink-0 items-center gap-2 border-b border-line px-3">
-        <h2 className="text-[15px] font-medium">{title}</h2>
+        <h2 className="whitespace-nowrap text-[15px] font-medium">{title}</h2>
         {hover && (
           <span className="flex items-center gap-1 text-2xs text-signal" title="Updates paused while you hover">
             <Pause size={10} fill="currentColor" /> Paused
