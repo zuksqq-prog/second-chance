@@ -14,6 +14,9 @@ import {
 } from "@/lib/domain/market";
 import { isSolanaAddress } from "@/lib/domain/sanitize";
 import { mergeTrades, parseGeckoTrades, type LiveTrade } from "@/lib/domain/live-trades";
+import { classifyPulse, pulseItemFromGecko, type PulseColumns, type PulseItem } from "@/lib/domain/pulse";
+import { bondingProgress } from "@/lib/domain/pump-curve";
+import { getBondingCurves } from "./pump";
 
 /**
  * Market data service.
@@ -82,7 +85,22 @@ export async function getTokenPairs(mint: string, opts: { fresh?: boolean } = {}
 }
 
 export async function getToken(mint: string, opts: { fresh?: boolean } = {}): Promise<TokenSnapshot | null> {
-  return bestPair(await getTokenPairs(mint, opts));
+  const ds = bestPair(await getTokenPairs(mint, opts).catch(() => []));
+  if (ds) return ds;
+  // Brand-new launches often reach GeckoTerminal before DexScreener.
+  return bestPair(await getGeckoTokenPools(mint, opts.fresh ? 4_000 : 10_000).catch(() => []));
+}
+
+async function getGeckoTokenPools(mint: string, ttl: number): Promise<TokenSnapshot[]> {
+  if (!isSolanaAddress(mint)) return [];
+  const data: any = await sharedCache.get(`gt:token-pools:${mint}`, ttl, () =>
+    getJson("geckoterminal", `${GT}/networks/solana/tokens/${mint}/pools?include=base_token,quote_token,dex&page=1`, {
+      accept: "application/json;version=20230302",
+    }),
+  );
+  const now = Date.now();
+  const included: any[] = data?.included ?? [];
+  return (data?.data ?? []).map((p: any) => fromGeckoPool(p, included, now)).filter((s: TokenSnapshot | null): s is TokenSnapshot => !!s && s.mint === mint);
 }
 
 /**
@@ -204,3 +222,59 @@ export async function getSolUsd(): Promise<number | null> {
   });
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
+
+// ---------------------------------------------------------------- Pulse (launchpad lifecycle)
+
+async function geckoPulsePools(path: string, cacheKey: string, ttl: number): Promise<PulseItem[]> {
+  let data: any;
+  try {
+    data = await sharedCache.get(cacheKey, ttl, () => getJson("geckoterminal", `${GT}${path}`, { accept: "application/json;version=20230302" }));
+  } catch (e) {
+    data = sharedCache.peek(cacheKey);
+    if (data === undefined) throw e;
+  }
+  const now = Date.now();
+  const included: any[] = data?.included ?? [];
+  return (data?.data ?? []).map((p: any) => pulseItemFromGecko(p, included, now)).filter((x: PulseItem | null): x is PulseItem => !!x);
+}
+
+/**
+ * Three-column launchpad board.
+ * Budget against GeckoTerminal's ~30 req/min public limit (shared, cached per instance):
+ * new_pools p1 every 8s, p2 every 24s; pump-fun and pumpswap top pools every 30s.
+ * Bonding progress comes from one Solana RPC getMultipleAccounts per refresh.
+ */
+export async function getPulse(): Promise<PulseColumns & { updatedAt: number; notes: string[] }> {
+  const notes: string[] = [];
+  const inc = "include=base_token,quote_token,dex";
+  const settle = async (p: Promise<PulseItem[]>, label: string) => {
+    try {
+      return await p;
+    } catch {
+      notes.push(`${label} is temporarily unavailable.`);
+      return [] as PulseItem[];
+    }
+  };
+  const [n1, n2, pumpTop, swapTop] = await Promise.all([
+    settle(geckoPulsePools(`/networks/solana/new_pools?${inc}&page=1`, "pulse:new:1", 8_000), "New pools"),
+    settle(geckoPulsePools(`/networks/solana/new_pools?${inc}&page=2`, "pulse:new:2", 24_000), "New pools (page 2)"),
+    settle(geckoPulsePools(`/networks/solana/dexes/pump-fun/pools?${inc}&sort=h24_tx_count_desc&page=1`, "pulse:pump:1", 30_000), "pump.fun pools"),
+    settle(geckoPulsePools(`/networks/solana/dexes/pumpswap/pools?${inc}&sort=h24_tx_count_desc&page=1`, "pulse:swap:1", 30_000), "PumpSwap pools"),
+  ]);
+  const newest = [...n1, ...n2];
+
+  // Bonding progress for every pump.fun curve we are about to show.
+  const pumpMints = [...new Set([...newest, ...pumpTop].filter((t) => t.dex === "pump-fun").map((t) => t.mint))];
+  try {
+    const curves = await getBondingCurves(pumpMints);
+    for (const t of [...newest, ...pumpTop]) {
+      const c = curves.get(t.mint);
+      if (c) t.bondingProgress = bondingProgress(c);
+    }
+  } catch {
+    notes.push("Bonding progress is unavailable (Solana RPC). Final Stretch needs it.");
+  }
+
+  const cols = classifyPulse(newest, pumpTop, [...newest, ...swapTop], Date.now());
+  return { ...cols, updatedAt: Date.now(), notes };
+}

@@ -39,6 +39,11 @@ const IMAGE_HOSTS = [
   "arweave.net",
   "cf-ipfs.com",
   "pump.mypinata.cloud",
+  "mypinata.cloud",
+  "ipfs.dweb.link",
+  "dweb.link",
+  "gateway.pinata.cloud",
+  "ipfs.io",
 ];
 
 export function safeImageUrl(input: unknown): string | null {
@@ -48,6 +53,7 @@ export function safeImageUrl(input: unknown): string | null {
     if (u.protocol !== "https:") return null;
     const host = u.hostname.toLowerCase();
     if (!IMAGE_HOSTS.some((h) => host === h || host.endsWith("." + h))) return null;
+    if (/missing/i.test(u.pathname)) return null;
     return u.toString();
   } catch {
     return null;

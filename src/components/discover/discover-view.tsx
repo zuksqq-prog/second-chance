@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 import { RefreshCw, SlidersHorizontal, Star } from "lucide-react";
 import { fetcher, post } from "@/lib/client/api";
@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { TokenAvatar } from "@/components/ui/token-avatar";
 import { cn } from "@/lib/utils";
+import { PulseBoard } from "./pulse-board";
 
 type Kind = "trending" | "new";
 interface Filters {
@@ -26,7 +27,7 @@ interface Filters {
 }
 const EMPTY: Filters = { minMarketCap: "", maxMarketCap: "", minLiquidity: "", minVolume24h: "", maxAgeHours: "", minChange1h: "", minTxns1h: "" };
 
-export function DiscoverView() {
+function TrendingView() {
   const [kind, setKind] = useState<Kind>("trending");
   const [filters, setFilters] = useState<Filters>(EMPTY);
   const [showFilters, setShowFilters] = useState(false);
@@ -212,4 +213,41 @@ export function TokenTable({ tokens, loading, onRemove }: { tokens: TokenSnapsho
 
 function Change({ v }: { v: number | null }) {
   return <td className={cn("px-2 text-right num", v == null ? "text-muted" : v >= 0 ? "up" : "down")}>{pct(v)}</td>;
+}
+
+/** Discover: Pulse board (launch lifecycle) or the Trending table. */
+export function DiscoverView() {
+  const [board, setBoard] = useState<"pulse" | "trending">("pulse");
+  useEffect(() => {
+    try {
+      if (localStorage.getItem("sc.discover") === "trending") setBoard("trending");
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  const choose = (b: "pulse" | "trending") => {
+    setBoard(b);
+    try {
+      localStorage.setItem("sc.discover", b);
+    } catch {
+      /* ignore */
+    }
+  };
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="flex h-12 shrink-0 items-center gap-4 border-b border-line px-4">
+        <h1 className="text-lg font-semibold">{board === "pulse" ? "Pulse" : "Trending"}</h1>
+        <Segmented
+          value={board}
+          onChange={choose}
+          options={[
+            { value: "pulse", label: "Pulse" },
+            { value: "trending", label: "Trending" },
+          ]}
+        />
+        {board === "pulse" && <span className="hidden text-2xs text-muted lg:block">Launches move left to right: new on a bonding curve, almost bonded, then migrated. Hover a column to pause it.</span>}
+      </div>
+      <div className="min-h-0 flex-1">{board === "pulse" ? <PulseBoard /> : <TrendingView />}</div>
+    </div>
+  );
 }

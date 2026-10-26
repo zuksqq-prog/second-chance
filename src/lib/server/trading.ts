@@ -3,7 +3,9 @@ import { randomUUID } from "node:crypto";
 import { evaluateSell, recordPlannedExitSale, reviseThesis, sellPercentOfOriginal } from "@/lib/domain/thesis-engine";
 import { acknowledge as acknowledgeDomain, assertExecutable, createIntent, effectiveStatus, IntentError, type IntentAction } from "@/lib/domain/trade-intent";
 import type { ThesisContent, TradeMode } from "@/lib/domain/types";
-import { simulatePaperFill } from "@/lib/domain/paper-fill";
+import { BASE_NETWORK_FEE_LAMPORTS, simulatePaperFill } from "@/lib/domain/paper-fill";
+import { curvePriceSol, quoteCurveBuy, quoteCurveSell } from "@/lib/domain/pump-curve";
+import { getBondingCurve } from "./pump";
 import { WSOL_MINT } from "@/lib/domain/market";
 import { buildPositions, totalQty } from "@/lib/domain/portfolio";
 import { bytesEqual, isZero, parseWireTx } from "@/lib/domain/tx-wire";
@@ -65,6 +67,14 @@ export async function startTrade(
       const snap = await getToken(p.mint, { fresh: true });
       mc = snap?.marketCap ?? null;
       observedAt = snap ? new Date(snap.observedAt) : null;
+      if (mc == null) {
+        // Curve-only token: market cap straight from the bonding curve.
+        const [curve, solUsd, decimals] = await Promise.all([getBondingCurve(p.mint), getSolUsd(), getDecimals(p.mint)]);
+        if (curve && solUsd) {
+          mc = curvePriceSol(curve) * (Number(curve.tokenTotalSupply) / 10 ** decimals) * solUsd;
+          observedAt = new Date();
+        }
+      }
     } catch (e) {
       log.warn("sell_market_data_unavailable", { mint: p.mint, err: String(e) });
     }
@@ -148,22 +158,47 @@ async function loadExecutable(wallet: string, intentId: string, mode: TradeMode)
 export async function executePaper(wallet: string, intentId: string, opts: { slippageBps: number; priorityFeeLamports: bigint }) {
   const e = env();
   const intent = await loadExecutable(wallet, intentId, "paper");
-  const [snap, solUsd, decimals] = await Promise.all([getToken(intent.mint, { fresh: true }), getSolUsd(), getDecimals(intent.mint)]);
-  if (!snap || snap.priceSol == null) throw new HttpError(409, "no_price", "No live SOL price for this token, so a paper fill can't be estimated.");
+  const [snap, solUsd, decimals, curve] = await Promise.all([
+    getToken(intent.mint, { fresh: true }).catch(() => null),
+    getSolUsd(),
+    getDecimals(intent.mint),
+    getBondingCurve(intent.mint).catch(() => null),
+  ]);
   if (!solUsd) throw new HttpError(502, "no_sol_price", "Live SOL price is unavailable right now.");
 
-  const fill = simulatePaperFill({
-    side: intent.side,
-    amountInRaw: intent.amountRaw,
-    tokenDecimals: decimals,
-    priceSol: snap.priceSol,
-    solUsd,
-    liquidityUsd: snap.liquidityUsd,
-    slippageBps: Math.min(opts.slippageBps, e.MAX_SLIPPAGE_BPS),
-    priorityFeeLamports: opts.priorityFeeLamports,
-    platformFeeBps: 10, // approximates a typical router fee so paper PnL isn't flattering
-  });
+  let fill: ReturnType<typeof simulatePaperFill>;
+  if (curve && !curve.complete) {
+    // Still on the pump.fun bonding curve: fill exactly along the curve.
+    const q = intent.side === "buy" ? quoteCurveBuy(curve, intent.amountRaw) : quoteCurveSell(curve, intent.amountRaw);
+    if (!q.ok) throw new HttpError(409, "fill_failed", q.error!);
+    const maxImpact = Math.min(opts.slippageBps, e.MAX_SLIPPAGE_BPS) / 100;
+    if (q.priceImpactPct > maxImpact)
+      throw new HttpError(409, "fill_failed", `Estimated price impact ${q.priceImpactPct.toFixed(2)}% exceeds your slippage of ${maxImpact.toFixed(2)}%.`);
+    fill = {
+      ok: true,
+      tokenAmountRaw: q.tokenAmountRaw,
+      solAmountLamports: q.solAmountLamports,
+      networkFeeLamports: BASE_NETWORK_FEE_LAMPORTS + opts.priorityFeeLamports,
+      platformFeeLamports: q.feeLamports,
+      priceImpactPct: q.priceImpactPct,
+      executionPriceSol: q.executionPriceSol,
+    };
+  } else {
+    if (!snap || snap.priceSol == null) throw new HttpError(409, "no_price", "No live SOL price for this token, so a paper fill can't be estimated.");
+    fill = simulatePaperFill({
+      side: intent.side,
+      amountInRaw: intent.amountRaw,
+      tokenDecimals: decimals,
+      priceSol: snap.priceSol,
+      solUsd,
+      liquidityUsd: snap.liquidityUsd,
+      slippageBps: Math.min(opts.slippageBps, e.MAX_SLIPPAGE_BPS),
+      priorityFeeLamports: opts.priorityFeeLamports,
+      platformFeeBps: 10, // approximates a typical router fee so paper PnL isn't flattering
+    });
+  }
   if (!fill.ok) throw new HttpError(409, "fill_failed", fill.error!);
+  const curveMc = curve ? curvePriceSol(curve) * (Number(curve.tokenTotalSupply) / 10 ** decimals) * solUsd : null;
 
   const acct = await repo.getOrCreatePaperAccount(wallet, BigInt(Math.round(e.PAPER_STARTING_SOL * 1e9)));
   // Pre-checks so an obviously unaffordable trade doesn't burn the intent (the atomic checks below still apply).
@@ -188,7 +223,7 @@ export async function executePaper(wallet: string, intentId: string, opts: { sli
         wallet,
         mode: "paper",
         mint: intent.mint,
-        tokenSymbol: snap.symbol,
+        tokenSymbol: snap?.symbol ?? null,
         tokenDecimals: decimals,
         side: intent.side,
         tokenAmountRaw: fill.tokenAmountRaw,
@@ -197,7 +232,7 @@ export async function executePaper(wallet: string, intentId: string, opts: { sli
         platformFeeLamports: fill.platformFeeLamports,
         priceSol: fill.executionPriceSol,
         priceUsd: fill.executionPriceSol * solUsd,
-        marketCap: snap.marketCap,
+        marketCap: snap?.marketCap ?? curveMc,
         signature: null,
         status: "confirmed",
         error: null,
