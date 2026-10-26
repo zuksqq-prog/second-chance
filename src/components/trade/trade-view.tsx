@@ -39,15 +39,15 @@ export function TradeView() {
   const tokenTrades = (tradesData?.trades ?? []).filter((t) => t.mint === token.mint && t.status === "confirmed");
 
   return (
-    <div className="grid h-full min-h-0 grid-cols-1 grid-rows-[auto_minmax(320px,1fr)_auto] overflow-y-auto lg:grid-cols-[minmax(0,1fr)_340px] lg:grid-rows-[auto_minmax(0,1fr)_320px] lg:overflow-hidden">
+    <div className="grid h-full min-h-0 grid-cols-1 grid-rows-[auto_minmax(320px,1fr)_auto] overflow-y-auto lg:grid-cols-[minmax(0,1fr)_340px] lg:grid-rows-[auto_minmax(240px,1fr)_minmax(200px,40%)] lg:overflow-hidden">
       <TokenHeader token={token} />
-      <div className="min-h-0 border-b border-line lg:border-r">
+      <div className="relative min-h-0 overflow-hidden border-b border-line lg:border-r">
         <PriceChart token={token} thesis={thesisData?.thesis ?? null} trades={tokenTrades} />
       </div>
       <aside className="border-b border-line lg:row-span-2 lg:overflow-y-auto">
         <TradePanel token={token} thesis={thesisData?.thesis ?? null} />
       </aside>
-      <section className="flex h-[340px] min-h-0 flex-col lg:h-auto lg:border-r lg:border-line">
+      <section className="relative z-10 flex h-[340px] min-h-0 flex-col bg-ink-0 lg:h-auto lg:border-r lg:border-line">
         <ActivityTabs token={token} />
       </section>
     </div>

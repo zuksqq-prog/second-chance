@@ -201,7 +201,7 @@ export function PriceChart({ token, thesis, trades }: { token: TokenSnapshot; th
   }, [ready, thesis, trades, factor, tf, token.priceUsd, token.marketCap, status]);
 
   return (
-    <div className="relative flex h-full min-h-[320px] flex-col">
+    <div className="relative flex h-full min-h-[320px] flex-col lg:min-h-0">
       <div className="flex items-center gap-2 px-3 py-1.5">
         <Segmented
           size="xs"
