@@ -238,12 +238,12 @@ export function InstantTrade() {
           onPointerUp={onUp}
           className={cn(
             "absolute z-10",
-            k === "w" && "inset-y-3 -left-1 w-2 cursor-ew-resize",
-            k === "e" && "inset-y-3 -right-1 w-2 cursor-ew-resize",
-            k === "nw" && "-left-1 -top-1 h-3 w-3 cursor-nwse-resize",
-            k === "se" && "-bottom-1 -right-1 h-3 w-3 cursor-nwse-resize",
-            k === "ne" && "-right-1 -top-1 h-3 w-3 cursor-nesw-resize",
-            k === "sw" && "-bottom-1 -left-1 h-3 w-3 cursor-nesw-resize",
+            k === "w" && "inset-y-5 -left-1.5 w-3 cursor-ew-resize",
+            k === "e" && "inset-y-5 -right-1.5 w-3 cursor-ew-resize",
+            k === "nw" && "-left-1.5 -top-1.5 h-5 w-5 cursor-nwse-resize",
+            k === "se" && "-bottom-1.5 -right-1.5 h-5 w-5 cursor-nwse-resize",
+            k === "ne" && "-right-1.5 -top-1.5 h-5 w-5 cursor-nesw-resize",
+            k === "sw" && "-bottom-1.5 -left-1.5 h-5 w-5 cursor-nesw-resize",
           )}
         />
       ))}
