@@ -21,6 +21,8 @@ interface AppState {
   selected: TokenSnapshot | null;
   selectedMint: string | null;
   selectToken: (t: TokenSnapshot | string) => void;
+  instantOpen: boolean;
+  setInstantOpen: (v: boolean | ((p: boolean) => boolean)) => void;
   toasts: Toast[];
   toast: (t: Omit<Toast, "id">) => void;
   dismiss: (id: number) => void;
@@ -43,6 +45,25 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const [selected, setSelected] = useState<TokenSnapshot | null>(null);
   const [selectedMint, setSelectedMint] = useState<string | null>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [instantOpen, setInstantOpenState] = useState(false);
+  useEffect(() => {
+    try {
+      if (localStorage.getItem("sc.instantOpen") === "1") setInstantOpenState(true);
+    } catch {
+      /* storage unavailable */
+    }
+  }, []);
+  const setInstantOpen = useCallback((v: boolean | ((p: boolean) => boolean)) => {
+    setInstantOpenState((prev) => {
+      const next = typeof v === "function" ? v(prev) : v;
+      try {
+        localStorage.setItem("sc.instantOpen", next ? "1" : "0");
+      } catch {
+        /* storage unavailable */
+      }
+      return next;
+    });
+  }, []);
 
   const setMode = useCallback((m: TradeMode) => {
     setModeState(m);
@@ -75,8 +96,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo(
-    () => ({ view, setView, mode, setMode, selected, selectedMint, selectToken, toasts, toast, dismiss }),
-    [view, mode, setMode, selected, selectedMint, selectToken, toasts, toast, dismiss],
+    () => ({ view, setView, mode, setMode, selected, selectedMint, selectToken, instantOpen, setInstantOpen, toasts, toast, dismiss }),
+    [view, mode, setMode, selected, selectedMint, selectToken, instantOpen, setInstantOpen, toasts, toast, dismiss],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

@@ -14,7 +14,7 @@ export const GET = route(
     const s = await repo.getSettings(wallet);
     const e = env();
     return json({
-      settings: { ...DEFAULTS, ...s },
+      settings: { ...DEFAULTS, ...s, instant: { ...DEFAULTS.instant, ...(s.instant ?? {}) } },
       limits: { maxSlippageBps: e.MAX_SLIPPAGE_BPS, maxPriorityFeeLamports: e.MAX_PRIORITY_FEE_LAMPORTS, maxRealTradeSol: e.MAX_REAL_TRADE_SOL },
     });
   },
@@ -26,7 +26,8 @@ export const PUT = route(
     const wallet = requireWallet(ctx);
     const b = await body(ctx.req, settingsBody);
     await repo.saveSettings(wallet, b);
-    return json({ settings: { ...DEFAULTS, ...(await repo.getSettings(wallet)) } });
+    const s = await repo.getSettings(wallet);
+    return json({ settings: { ...DEFAULTS, ...s, instant: { ...DEFAULTS.instant, ...(s.instant ?? {}) } } });
   },
   { auth: true },
 );

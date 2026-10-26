@@ -47,6 +47,6 @@ export const tradeLimiter = new TokenBucketLimiter(10, 0.2); // trades: burst 10
 export const upstream = {
   dexscreener: new TokenBucketLimiter(20, 4.5),
   dexscreenerProfiles: new TokenBucketLimiter(5, 0.9),
-  geckoterminal: new TokenBucketLimiter(5, 0.45),
+  geckoterminal: new TokenBucketLimiter(8, 0.5),
   jupiter: new TokenBucketLimiter(2, 0.5),
 };

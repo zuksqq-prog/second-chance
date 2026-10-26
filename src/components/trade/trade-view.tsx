@@ -6,16 +6,11 @@ import { useApp } from "@/lib/client/store";
 import { useActiveThesis, useToken, useTrades } from "@/lib/client/hooks";
 import { compactUsd, pct, shortAddr, tokenPrice } from "@/lib/domain/format";
 import { TokenAvatar } from "@/components/ui/token-avatar";
-import { Segmented } from "@/components/ui/segmented";
 import { Button } from "@/components/ui/button";
 import { PriceChart } from "./price-chart";
 import { TradePanel } from "./trade-panel";
-import { TokenInfo } from "./token-info";
-import { PositionsTable } from "@/components/portfolio/positions-table";
-import { HistoryTable } from "@/components/portfolio/history-table";
+import { ActivityTabs } from "./activity-tabs";
 import { cn } from "@/lib/utils";
-
-type Tab = "positions" | "history" | "info";
 
 export function TradeView() {
   const { selected, selectedMint, setView } = useApp();
@@ -23,7 +18,6 @@ export function TradeView() {
   const token = data?.token ?? null;
   const { data: thesisData } = useActiveThesis(selectedMint);
   const { data: tradesData } = useTrades();
-  const [tab, setTab] = useState<Tab>("positions");
 
   if (!selectedMint) {
     return (
@@ -45,7 +39,7 @@ export function TradeView() {
   const tokenTrades = (tradesData?.trades ?? []).filter((t) => t.mint === token.mint && t.status === "confirmed");
 
   return (
-    <div className="grid h-full min-h-0 grid-cols-1 grid-rows-[auto_minmax(320px,1fr)_auto] overflow-y-auto lg:grid-cols-[minmax(0,1fr)_340px] lg:grid-rows-[auto_minmax(0,1fr)_240px] lg:overflow-hidden">
+    <div className="grid h-full min-h-0 grid-cols-1 grid-rows-[auto_minmax(320px,1fr)_auto] overflow-y-auto lg:grid-cols-[minmax(0,1fr)_340px] lg:grid-rows-[auto_minmax(0,1fr)_320px] lg:overflow-hidden">
       <TokenHeader token={token} />
       <div className="min-h-0 border-b border-line lg:border-r">
         <PriceChart token={token} thesis={thesisData?.thesis ?? null} trades={tokenTrades} />
@@ -53,24 +47,8 @@ export function TradeView() {
       <aside className="border-b border-line lg:row-span-2 lg:overflow-y-auto">
         <TradePanel token={token} thesis={thesisData?.thesis ?? null} />
       </aside>
-      <section className="flex min-h-[220px] flex-col lg:min-h-0 lg:border-r lg:border-line">
-        <div className="flex items-center gap-2 border-b border-line px-3 py-1.5">
-          <Segmented
-            size="xs"
-            value={tab}
-            onChange={setTab}
-            options={[
-              { value: "positions", label: "Positions" },
-              { value: "history", label: "History" },
-              { value: "info", label: "Token info" },
-            ]}
-          />
-        </div>
-        <div className="min-h-0 flex-1 overflow-auto">
-          {tab === "positions" && <PositionsTable compact />}
-          {tab === "history" && <HistoryTable mint={token.mint} />}
-          {tab === "info" && <TokenInfo token={token} />}
-        </div>
+      <section className="flex h-[340px] min-h-0 flex-col lg:h-auto lg:border-r lg:border-line">
+        <ActivityTabs token={token} />
       </section>
     </div>
   );

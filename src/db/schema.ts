@@ -32,6 +32,17 @@ export interface UserSettings {
   priorityFeeLamports?: string;
   widget?: { x: number; y: number; w: number; h: number; minimized: boolean; hidden: boolean; pinned: boolean };
   defaultMode?: "paper" | "real";
+  instant?: InstantSettings;
+}
+
+export interface InstantSettings {
+  buySlippageBps: number;
+  buyPriorityLamports: string;
+  sellSlippageBps: number;
+  sellPriorityLamports: string;
+  /** Panel position; per account so it follows you between devices. */
+  x?: number;
+  y?: number;
 }
 
 export const authNonces = pgTable("auth_nonces", {

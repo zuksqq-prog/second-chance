@@ -20,6 +20,7 @@
     "vercel-build": "tsx scripts/migrate.ts && next build"
   },
   "dependencies": {
+    "@fontsource/ibm-plex-mono": "^5.0.0",
     "@fontsource/ibm-plex-sans": "^5.0.0",
     "@fontsource/newsreader": "^5.0.0",
     "@solana/wallet-adapter-base": "0.9.23",

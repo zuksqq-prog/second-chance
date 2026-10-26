@@ -13,6 +13,7 @@ import {
   type TokenSnapshot,
 } from "@/lib/domain/market";
 import { isSolanaAddress } from "@/lib/domain/sanitize";
+import { mergeTrades, parseGeckoTrades, type LiveTrade } from "@/lib/domain/live-trades";
 
 /**
  * Market data service.
@@ -68,16 +69,55 @@ export async function getTokens(mints: string[]): Promise<Map<string, TokenSnaps
   return out;
 }
 
-export async function getToken(mint: string, opts: { fresh?: boolean } = {}): Promise<TokenSnapshot | null> {
-  if (!isSolanaAddress(mint)) return null;
+/** All Solana pools for a token (DexScreener), as snapshots. */
+export async function getTokenPairs(mint: string, opts: { fresh?: boolean } = {}): Promise<TokenSnapshot[]> {
+  if (!isSolanaAddress(mint)) return [];
   const key = `ds:token-pairs:${mint}`;
   const ttl = opts.fresh ? 3_000 : 10_000;
   const pairs: any[] = await sharedCache.get(key, ttl, () => getJson("dexscreener", `${DS}/token-pairs/v1/solana/${mint}`));
   const now = Date.now();
-  const snaps = (Array.isArray(pairs) ? pairs : [])
+  return (Array.isArray(pairs) ? pairs : [])
     .map((p) => fromDexScreenerPair(p, now))
     .filter((s): s is TokenSnapshot => !!s && s.mint === mint);
-  return bestPair(snaps);
+}
+
+export async function getToken(mint: string, opts: { fresh?: boolean } = {}): Promise<TokenSnapshot | null> {
+  return bestPair(await getTokenPairs(mint, opts));
+}
+
+/**
+ * Live swaps for a token across its most active pools (GeckoTerminal trades,
+ * last 24h, up to 300 per pool). Each pool is cached for 6 s and shared by all
+ * viewers; if a refresh fails, the last good list is served and marked stale.
+ */
+export async function getLiveTrades(mint: string, maxPools = 2): Promise<{ trades: LiveTrade[]; pools: string[]; stale: boolean }> {
+  const pairs = await getTokenPairs(mint);
+  const best = bestPair(pairs);
+  const supply = best?.marketCap && best.priceUsd ? best.marketCap / best.priceUsd : null;
+  const pools = [...pairs]
+    .sort((a, b) => (b.volume.h1 ?? 0) - (a.volume.h1 ?? 0) || (b.liquidityUsd ?? 0) - (a.liquidityUsd ?? 0))
+    .slice(0, maxPools)
+    .map((p) => p.pairAddress);
+  let stale = false;
+  const lists = await Promise.all(
+    pools.map(async (pool) => {
+      const key = `gt:trades:${pool}`;
+      try {
+        const json = await sharedCache.get(key, 6_000, () =>
+          getJson("geckoterminal", `${GT}/networks/solana/pools/${pool}/trades?trade_volume_in_usd_greater_than=0`, {
+            accept: "application/json;version=20230302",
+          }),
+        );
+        return parseGeckoTrades(json, mint, pool, supply);
+      } catch (e) {
+        const old = sharedCache.peek<unknown>(key);
+        if (old === undefined) throw e;
+        stale = true;
+        return parseGeckoTrades(old, mint, pool, supply);
+      }
+    }),
+  );
+  return { trades: mergeTrades(lists, 300), pools, stale };
 }
 
 export async function searchTokens(q: string): Promise<TokenSnapshot[]> {

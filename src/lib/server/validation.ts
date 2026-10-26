@@ -84,6 +84,16 @@ export const settingsBody = z.object({
     })
     .optional(),
   defaultMode: mode.optional(),
+  instant: z
+    .object({
+      buySlippageBps: z.number().int().min(1).max(5000),
+      buyPriorityLamports: z.string().regex(/^\d{1,12}$/),
+      sellSlippageBps: z.number().int().min(1).max(5000),
+      sellPriorityLamports: z.string().regex(/^\d{1,12}$/),
+      x: z.number().finite().optional(),
+      y: z.number().finite().optional(),
+    })
+    .optional(),
 });
 
 export const watchBody = z.object({ mint: address, symbol: z.string().max(16).nullable().optional() });

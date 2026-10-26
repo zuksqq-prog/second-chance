@@ -96,4 +96,19 @@ export interface SettingsDTO {
   priorityFeeLamports: string;
   defaultMode: TradeMode;
   widget?: { x: number; y: number; w: number; h: number; minimized: boolean; hidden: boolean; pinned: boolean };
+  instant: { buySlippageBps: number; buyPriorityLamports: string; sellSlippageBps: number; sellPriorityLamports: string; x?: number; y?: number };
+}
+
+export interface LiveTradeDTO {
+  id: string;
+  txHash: string;
+  pool: string;
+  kind: "buy" | "sell";
+  trader: string;
+  tokenAmount: number;
+  priceUsd: number;
+  volumeUsd: number;
+  marketCap: number | null;
+  timestamp: number;
+  block: number;
 }

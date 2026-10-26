@@ -24,6 +24,7 @@ const config: Config = {
       fontFamily: {
         sans: ["\"IBM Plex Sans\"", "ui-sans-serif", "system-ui", "sans-serif"],
         voice: ["Newsreader", "ui-serif", "Georgia", "serif"],
+        mono: ["\"IBM Plex Mono\"", "ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
       },
       fontSize: {
         "2xs": ["0.6875rem", { lineHeight: "1rem" }],

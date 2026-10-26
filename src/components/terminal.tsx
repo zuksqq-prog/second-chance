@@ -11,6 +11,7 @@ import { ThesesView } from "./thesis/theses-view";
 import { WatchlistView } from "./watchlist/watchlist-view";
 import { SettingsView } from "./settings/settings-view";
 import { ThesisWidget } from "./thesis/thesis-widget";
+import { InstantTrade } from "./trade/instant-trade";
 import { ModeBanner } from "./shell/mode-banner";
 
 export function Terminal() {
@@ -32,6 +33,7 @@ export function Terminal() {
         <MobileNav />
       </div>
       <ThesisWidget />
+      <InstantTrade />
       <Toaster />
     </div>
   );

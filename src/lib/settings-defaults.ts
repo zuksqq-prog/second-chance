@@ -5,5 +5,11 @@ export const SETTINGS_DEFAULTS = {
   priorityFeeLamports: "100000",
   defaultMode: "paper" as "paper" | "real",
   widget: { x: -1, y: -1, w: 340, h: 420, minimized: false, hidden: false, pinned: false },
+  instant: {
+    buySlippageBps: 2000,
+    buyPriorityLamports: "2000000", // 0.002 SOL
+    sellSlippageBps: 2000,
+    sellPriorityLamports: "500000", // 0.0005 SOL
+  } as { buySlippageBps: number; buyPriorityLamports: string; sellSlippageBps: number; sellPriorityLamports: string; x?: number; y?: number },
 };
 export type Settings = typeof SETTINGS_DEFAULTS;
