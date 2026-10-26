@@ -1,6 +1,6 @@
 "use client";
 
-import { CandlestickChart, Compass, NotebookPen, PieChart, Settings, Star } from "lucide-react";
+import { CandlestickChart, Compass, Gift, NotebookPen, PieChart, Settings, Star } from "lucide-react";
 import { useApp, type View } from "@/lib/client/store";
 import { cn } from "@/lib/utils";
 
@@ -10,6 +10,7 @@ const NAV: { view: View; label: string; icon: typeof Compass }[] = [
   { view: "portfolio", label: "Portfolio", icon: PieChart },
   { view: "theses", label: "Theses", icon: NotebookPen },
   { view: "watchlist", label: "Watchlist", icon: Star },
+  { view: "rewards", label: "Rewards", icon: Gift },
 ];
 
 export function Sidebar() {

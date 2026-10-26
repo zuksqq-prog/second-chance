@@ -116,3 +116,19 @@ test("sell init fraction", () => {
   assert.equal(sellInitialFraction(0, 20), null);
   assert.equal(sellInitialFraction(10, 0), null);
 });
+
+test("candles from trades connect and aggregate", async () => {
+  const { candlesFromTrades, mergeCandles } = await import("../src/lib/domain/live-trades");
+  const t = (s: number, p: number, v = 1) => ({ timestamp: s * 1000, priceUsd: p, volumeUsd: v });
+  const c = candlesFromTrades([t(61, 2), t(5, 1), t(30, 3), t(65, 1.5)], 60);
+  assert.deepEqual(c, [
+    { time: 0, open: 1, high: 3, low: 1, close: 3, volume: 2 },
+    { time: 60, open: 3, high: 3, low: 1.5, close: 1.5, volume: 2 },
+  ]);
+  const merged = mergeCandles([{ time: 0, open: 1, high: 2, low: 1, close: 2, volume: 5 }], c);
+  assert.equal(merged.length, 2);
+  assert.equal(merged[0].high, 3);
+  assert.equal(merged[0].close, 3);
+  assert.equal(merged[1].time, 60);
+  assert.deepEqual(mergeCandles([], c), c);
+});

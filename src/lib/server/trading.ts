@@ -9,7 +9,8 @@ import { getBondingCurve } from "./pump";
 import { WSOL_MINT } from "@/lib/domain/market";
 import { buildPositions, totalQty } from "@/lib/domain/portfolio";
 import { bytesEqual, isZero, parseWireTx } from "@/lib/domain/tx-wire";
-import { env, realTradingStatus } from "./env";
+import { env, platformFeeBps, realTradingStatus } from "./env";
+import { platformFeeFor } from "@/lib/domain/rewards";
 import { HttpError } from "./http";
 import { getSolUsd, getToken } from "./market-data";
 import * as repo from "./repo";
@@ -391,6 +392,12 @@ export async function executeReal(wallet: string, intentId: string, signedTransa
 
   const amounts = jupiterAmounts(intent.side, result);
   await repo.updateTrade(trade.id, { signature: result.signature ?? null, ...amounts });
+  // Platform fee (basis for cashback): bps of the SOL leg — SOL in for buys, SOL out for sells.
+  const feeBps = platformFeeBps();
+  if (feeBps > 0) {
+    const solLeg = intent.side === "buy" ? intent.amountRaw : (amounts.solAmountLamports ?? 0n);
+    await repo.setReferralFee(trade.id, platformFeeFor(solLeg, feeBps));
+  }
   // Jupiter says landed; we still confirm independently before marking it confirmed.
   const final = await reconcileRealTrade(wallet, trade.id);
   if (solUsd == null) log.warn("sol_usd_unavailable_at_execute", { tradeId: trade.id });

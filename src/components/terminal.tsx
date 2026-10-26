@@ -10,6 +10,7 @@ import { PortfolioView } from "./portfolio/portfolio-view";
 import { ThesesView } from "./thesis/theses-view";
 import { WatchlistView } from "./watchlist/watchlist-view";
 import { SettingsView } from "./settings/settings-view";
+import { RewardsView } from "./rewards/rewards-view";
 import { ThesisWidget } from "./thesis/thesis-widget";
 import { InstantTrade } from "./trade/instant-trade";
 import { ModeBanner } from "./shell/mode-banner";
@@ -28,6 +29,7 @@ export function Terminal() {
           {view === "portfolio" && <PortfolioView />}
           {view === "theses" && <ThesesView />}
           {view === "watchlist" && <WatchlistView />}
+          {view === "rewards" && <RewardsView />}
           {view === "settings" && <SettingsView />}
         </main>
         <MobileNav />

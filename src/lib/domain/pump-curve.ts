@@ -7,6 +7,8 @@
  * reserves reach zero the curve completes and the token migrates.
  */
 
+import { base58Encode } from "./base58";
+
 export const PUMP_PROGRAM_ID = "6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P";
 export const INITIAL_REAL_TOKEN_RESERVES = 793_100_000_000_000n;
 /** Approximate total pump.fun trading fee (protocol + creator). Used for paper fills only. */
@@ -19,6 +21,8 @@ export interface BondingCurve {
   realSolReserves: bigint;
   tokenTotalSupply: bigint;
   complete: boolean;
+  /** Token creator (the "dev"), present on curves created since pump.fun added creator fees. */
+  creator: string | null;
 }
 
 function u64(b: Uint8Array, o: number): bigint {
@@ -36,7 +40,12 @@ export function parseBondingCurve(data: Uint8Array): BondingCurve | null {
     realSolReserves: u64(data, 32),
     tokenTotalSupply: u64(data, 40),
     complete: data[48] === 1,
+    creator: null,
   };
+  if (data.length >= 81) {
+    const pk = data.subarray(49, 81);
+    if (pk.some((b) => b !== 0)) c.creator = base58Encode(pk);
+  }
   // Sanity: reject accounts that don't look like a curve.
   if (c.virtualTokenReserves === 0n || c.virtualSolReserves === 0n || c.realTokenReserves > c.virtualTokenReserves) return null;
   return c;

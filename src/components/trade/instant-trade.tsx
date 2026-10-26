@@ -16,6 +16,10 @@ import { cn } from "@/lib/utils";
 
 const POS_KEY = "sc.instantPos";
 const W = 412;
+/** Approximate unscaled panel height, used to keep the top edge anchored when resizing from it. */
+const H = 360;
+const MIN_SCALE = 0.75;
+const MAX_SCALE = 1.6;
 
 type Instant = SettingsDTO["instant"];
 
@@ -34,44 +38,70 @@ export function InstantTrade() {
   const { data: solData } = useSWR<{ solUsd: number | null }>("/api/market/sol-price", fetcher, { refreshInterval: 30_000 });
   const flow = useTradeFlow();
 
-  // ----- position (draggable) -----
-  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  // ----- position + scale (drag from anywhere, resize from edges/corners) -----
+  // Resizing scales the whole panel uniformly, like pro terminals' quick-trade widgets.
+  const [box, setBox] = useState<{ x: number; y: number; scale: number } | null>(null);
   useEffect(() => {
-    let p: { x: number; y: number } | null = null;
+    let p: { x: number; y: number; scale?: number } | null = null;
     try {
       const raw = localStorage.getItem(POS_KEY);
       if (raw) p = JSON.parse(raw);
     } catch {
       /* ignore */
     }
-    setPos(clampPos(p ?? { x: window.innerWidth - W - 24, y: window.innerHeight - 360 }));
-    const onResize = () => setPos((q) => (q ? clampPos(q) : q));
+    setBox(clampBox({ x: p?.x ?? window.innerWidth - W - 24, y: p?.y ?? window.innerHeight - 380, scale: p?.scale ?? 1 }));
+    const onResize = () => setBox((q) => (q ? clampBox(q) : q));
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
-  const drag = useRef<{ sx: number; sy: number; ox: number; oy: number } | null>(null);
-  const onDown = (e: React.PointerEvent) => {
-    if ((e.target as HTMLElement).closest("button,input")) return;
-    if (!pos) return;
+  const gesture = useRef<{ kind: "move" | "e" | "w" | "ne" | "nw" | "se" | "sw"; sx: number; sy: number; start: { x: number; y: number; scale: number } } | null>(null);
+  const persist = (b: { x: number; y: number; scale: number }) => {
+    try {
+      localStorage.setItem(POS_KEY, JSON.stringify(b));
+    } catch {
+      /* ignore */
+    }
+  };
+  const begin = (kind: NonNullable<typeof gesture.current>["kind"]) => (e: React.PointerEvent) => {
+    if (!box) return;
+    // Anything interactive keeps working; everything else drags the panel.
+    if (kind === "move" && (e.target as HTMLElement).closest("button,input,select,textarea,label,a")) return;
+    e.preventDefault();
+    e.stopPropagation();
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    drag.current = { sx: e.clientX, sy: e.clientY, ox: pos.x, oy: pos.y };
+    gesture.current = { kind, sx: e.clientX, sy: e.clientY, start: box };
   };
   const onMove = (e: React.PointerEvent) => {
-    const d = drag.current;
-    if (d) setPos(clampPos({ x: d.ox + e.clientX - d.sx, y: d.oy + e.clientY - d.sy }));
+    const g = gesture.current;
+    if (!g) return;
+    const dx = e.clientX - g.sx;
+    const dy = e.clientY - g.sy;
+    const s = g.start;
+    if (g.kind === "move") return setBox(clampBox({ ...s, x: s.x + dx, y: s.y + dy }));
+    const w0 = W * s.scale;
+    const grow = g.kind.includes("e") ? dx : -dx;
+    const scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, (w0 + grow) / W));
+    const w1 = W * scale;
+    const h0 = H * s.scale;
+    const h1 = H * scale;
+    setBox(
+      clampBox({
+        scale,
+        x: g.kind.includes("w") ? s.x + (w0 - w1) : s.x,
+        y: g.kind.startsWith("n") ? s.y + (h0 - h1) : s.y,
+      }),
+    );
   };
-  const onUp = () => {
-    if (!drag.current) return;
-    drag.current = null;
-    setPos((p) => {
-      try {
-        if (p) localStorage.setItem(POS_KEY, JSON.stringify(p));
-      } catch {
-        /* ignore */
-      }
-      return p;
+  const onUp = (e: React.PointerEvent) => {
+    if (!gesture.current) return;
+    (e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId);
+    gesture.current = null;
+    setBox((b) => {
+      if (b) persist(b);
+      return b;
     });
   };
+  const pos = box;
 
   // ----- editable values -----
   const [editing, setEditing] = useState(false);
@@ -190,13 +220,36 @@ export function InstantTrade() {
   return (
     <>
     <div
-      className="fixed z-40 select-none overflow-hidden rounded-xl border border-line-strong bg-ink-1 text-[13px] shadow-2xl shadow-black/60"
-      style={{ left: pos.x, top: pos.y, width: W, maxWidth: "calc(100vw - 16px)" }}
+      className="fixed z-40 select-none"
+      style={{ left: pos.x / pos.scale, top: pos.y / pos.scale, width: W, zoom: pos.scale }}
       role="dialog"
       aria-label="Instant Trade"
+      onPointerDown={begin("move")}
+      onPointerMove={onMove}
+      onPointerUp={onUp}
     >
-      {/* drag bar */}
-      <div onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} className="flex h-6 cursor-grab items-center justify-between px-2 active:cursor-grabbing">
+      {/* resize handles: left/right edges and all four corners */}
+      {(["w", "e", "nw", "ne", "sw", "se"] as const).map((k) => (
+        <span
+          key={k}
+          aria-hidden
+          onPointerDown={begin(k)}
+          onPointerMove={onMove}
+          onPointerUp={onUp}
+          className={cn(
+            "absolute z-10",
+            k === "w" && "inset-y-3 -left-1 w-2 cursor-ew-resize",
+            k === "e" && "inset-y-3 -right-1 w-2 cursor-ew-resize",
+            k === "nw" && "-left-1 -top-1 h-3 w-3 cursor-nwse-resize",
+            k === "se" && "-bottom-1 -right-1 h-3 w-3 cursor-nwse-resize",
+            k === "ne" && "-right-1 -top-1 h-3 w-3 cursor-nesw-resize",
+            k === "sw" && "-bottom-1 -left-1 h-3 w-3 cursor-nesw-resize",
+          )}
+        />
+      ))}
+      <div className="cursor-grab overflow-hidden rounded-xl border border-line-strong bg-ink-1 text-[13px] shadow-2xl shadow-black/60 active:cursor-grabbing">
+      {/* title row */}
+      <div className="flex h-6 items-center justify-between px-2">
         <span className="flex items-center gap-1.5 text-2xs text-muted">
           <GripHorizontal size={12} /> {symbol} · {mode === "paper" ? "Paper" : "Real"}
         </span>
@@ -390,7 +443,7 @@ export function InstantTrade() {
           )}
         </Cell>
       </div>
-
+      </div>
     </div>
     <SecondChanceModal flow={flow} estimateSol={null} sellLabel={`Sell ${symbol}`} />
     </>
@@ -505,11 +558,16 @@ function fromDraft(d: Draft, maxSlipBps: number): { ok: true; value: Partial<Set
   };
 }
 
-function clampPos(p: { x: number; y: number }) {
-  if (typeof window === "undefined") return p;
+/** Keep at least part of the panel on screen. Coordinates are in screen pixels. */
+function clampBox(b: { x: number; y: number; scale: number }) {
+  if (typeof window === "undefined") return b;
+  const scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, b.scale || 1));
+  const w = W * scale;
+  // CSS zoom also scales left/top, so store screen px and divide when rendering.
   return {
-    x: Math.min(Math.max(8, p.x), Math.max(8, window.innerWidth - Math.min(W, window.innerWidth - 16) - 8)),
-    y: Math.min(Math.max(8, p.y), Math.max(8, window.innerHeight - 120)),
+    scale,
+    x: Math.min(Math.max(8 - w + 80, b.x), window.innerWidth - 80),
+    y: Math.min(Math.max(8, b.y), window.innerHeight - 60),
   };
 }
 

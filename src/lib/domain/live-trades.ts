@@ -150,3 +150,54 @@ export function sellInitialFraction(investedUsd: number, holdingUsd: number): nu
   if (!(investedUsd > 0) || !(holdingUsd > 0)) return null;
   return Math.min(1, investedUsd / holdingUsd);
 }
+
+export interface TradeCandle {
+  time: number; // unix seconds, bucket start
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number; // USD
+}
+
+/** Bucket swaps into OHLC candles (USD price, USD volume). Trades may be in any order. */
+export function candlesFromTrades(trades: { timestamp: number; priceUsd: number; volumeUsd: number }[], stepSec: number): TradeCandle[] {
+  const sorted = [...trades].filter((t) => t.priceUsd > 0 && Number.isFinite(t.priceUsd)).sort((a, b) => a.timestamp - b.timestamp);
+  const out: TradeCandle[] = [];
+  for (const t of sorted) {
+    const time = Math.floor(t.timestamp / 1000 / stepSec) * stepSec;
+    const last = out[out.length - 1];
+    if (last && last.time === time) {
+      last.high = Math.max(last.high, t.priceUsd);
+      last.low = Math.min(last.low, t.priceUsd);
+      last.close = t.priceUsd;
+      last.volume += t.volumeUsd;
+    } else {
+      // Open at the previous close so consecutive candles connect, like exchange charts.
+      const open = last ? last.close : t.priceUsd;
+      out.push({ time, open, high: Math.max(open, t.priceUsd), low: Math.min(open, t.priceUsd), close: t.priceUsd, volume: t.volumeUsd });
+    }
+  }
+  return out;
+}
+
+/**
+ * Combine provider OHLCV with trade-built candles: provider history first,
+ * trade candles refresh the last provider bucket and extend past it.
+ */
+export function mergeCandles(base: TradeCandle[], fromTrades: TradeCandle[]): TradeCandle[] {
+  if (!base.length) return fromTrades;
+  const out = base.map((c) => ({ ...c }));
+  const lastTime = out[out.length - 1].time;
+  for (const c of fromTrades) {
+    if (c.time < lastTime) continue;
+    if (c.time === lastTime) {
+      const l = out[out.length - 1];
+      l.high = Math.max(l.high, c.high);
+      l.low = Math.min(l.low, c.low);
+      l.close = c.close;
+      l.volume = Math.max(l.volume, c.volume);
+    } else out.push({ ...c });
+  }
+  return out;
+}

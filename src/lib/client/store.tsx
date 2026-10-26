@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { TokenSnapshot, TradeMode } from "./types";
 
-export type View = "discover" | "trade" | "portfolio" | "theses" | "watchlist" | "settings";
+export type View = "discover" | "trade" | "portfolio" | "theses" | "watchlist" | "rewards" | "settings";
 
 interface Toast {
   id: number;

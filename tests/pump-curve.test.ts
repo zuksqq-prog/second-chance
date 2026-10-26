@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { bondingProgress, curvePriceSol, INITIAL_REAL_TOKEN_RESERVES, parseBondingCurve, quoteCurveBuy, quoteCurveSell } from "../src/lib/domain/pump-curve";
 
-function encode(c: { vT: bigint; vS: bigint; rT: bigint; rS: bigint; supply: bigint; complete: boolean }): Uint8Array {
+function encode(c: { vT: bigint; vS: bigint; rT: bigint; rS: bigint; supply: bigint; complete: boolean; creator?: Uint8Array }): Uint8Array {
   const b = new Uint8Array(81);
   b.set([0x17, 0xb7, 0xf8, 0x37, 0x60, 0xd8, 0xac, 0x60]); // discriminator (value irrelevant to parsing)
   const put = (o: number, v: bigint) => {
@@ -14,6 +14,7 @@ function encode(c: { vT: bigint; vS: bigint; rT: bigint; rS: bigint; supply: big
   put(32, c.rS);
   put(40, c.supply);
   b[48] = c.complete ? 1 : 0;
+  if (c.creator) b.set(c.creator, 49);
   return b;
 }
 
@@ -66,4 +67,12 @@ test("buy is capped by remaining real tokens", () => {
   const c = parseBondingCurve(encode({ ...fresh, rT: 1_000_000n }))!;
   const q = quoteCurveBuy(c, 50_000_000_000n);
   assert.equal(q.tokenAmountRaw, 1_000_000n);
+});
+
+test("reads the creator (dev) wallet when present", async () => {
+  const { base58Decode } = await import("../src/lib/domain/base58");
+  const dev = "HsDCUYeuf6eM92nwDjeciHZvjYZwosQn7KAct1g6vGyd";
+  const c = parseBondingCurve(encode({ ...fresh, creator: base58Decode(dev) }))!;
+  assert.equal(c.creator, dev);
+  assert.equal(parseBondingCurve(encode(fresh))!.creator, null);
 });

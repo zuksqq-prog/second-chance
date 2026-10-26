@@ -1,5 +1,5 @@
 import "server-only";
-import { env } from "./env";
+import { env, platformFeeBps } from "./env";
 import { upstream } from "./rate-limit";
 
 /**
@@ -63,6 +63,11 @@ export async function getOrder(p: {
     taker: p.taker,
     slippageBps: String(p.slippageBps),
   });
+  const fee = platformFeeBps();
+  if (fee > 0) {
+    qs.set("referralAccount", env().JUPITER_REFERRAL_ACCOUNT!);
+    qs.set("referralFee", String(fee));
+  }
   const res = await fetch(`${env().JUPITER_BASE_URL}/order?${qs}`, {
     headers: headers(),
     signal: AbortSignal.timeout(10_000),

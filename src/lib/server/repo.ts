@@ -406,3 +406,52 @@ export async function addWatch(wallet: string, mint: string, symbol: string | nu
 export async function removeWatch(wallet: string, mint: string) {
   await sql`delete from watchlist where wallet_address = ${wallet} and mint = ${mint}`;
 }
+
+// ---------- rewards ----------
+
+export async function setReferralFee(tradeId: string, lamports: bigint) {
+  await sql`update trades set referral_fee_lamports = ${lamports.toString()} where id = ${tradeId}`;
+}
+
+/** Real, confirmed trading activity used for cashback and quests. */
+export async function rewardsActivity(wallet: string) {
+  const [tot] = await sql`select coalesce(sum(sol_amount_lamports), 0) as volume, count(*)::int as txs,
+                                 coalesce(sum(referral_fee_lamports), 0) as fees
+                          from trades where wallet_address = ${wallet} and mode = 'real' and status = 'confirmed'`;
+  const days = await sql`select to_char(date_trunc('day', coalesce(confirmed_at, created_at) at time zone 'UTC'), 'YYYY-MM-DD') as day,
+                                coalesce(sum(referral_fee_lamports), 0) as fees
+                         from trades where wallet_address = ${wallet} and mode = 'real' and status = 'confirmed' and referral_fee_lamports > 0
+                         group by 1 order by 1`;
+  const [cl] = await sql`select coalesce(sum(amount_lamports) filter (where status in ('pending','paid')), 0) as reserved,
+                                coalesce(sum(amount_lamports) filter (where status = 'paid'), 0) as paid
+                         from reward_claims where wallet_address = ${wallet}`;
+  const claims = await sql`select id, amount_lamports, payout_address, status, paid_signature, created_at
+                           from reward_claims where wallet_address = ${wallet} order by created_at desc limit 20`;
+  return {
+    volumeLamports: big(tot.volume),
+    txCount: tot.txs as number,
+    feeLamports: big(tot.fees),
+    feesByDay: days.map((d) => ({ day: d.day as string, lamports: big(d.fees) })),
+    reservedLamports: big(cl.reserved),
+    paidLamports: big(cl.paid),
+    claims: claims.map((c) => ({
+      id: c.id as string,
+      amountLamports: big(c.amountLamports),
+      payoutAddress: c.payoutAddress as string,
+      status: c.status as string,
+      paidSignature: c.paidSignature as string | null,
+      createdAt: c.createdAt as Date,
+    })),
+  };
+}
+
+/** Create a claim for exactly `amount`. Fails if one is already pending (unique index). */
+export async function createClaim(wallet: string, amount: bigint, payout: string) {
+  try {
+    const [r] = await sql`insert into reward_claims (wallet_address, amount_lamports, payout_address) values (${wallet}, ${amount.toString()}, ${payout}) returning id`;
+    return r.id as string;
+  } catch (e) {
+    if (String((e as Error).message).includes("reward_claims_one_pending")) return null;
+    throw e;
+  }
+}

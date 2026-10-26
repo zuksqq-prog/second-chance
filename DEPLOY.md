@@ -52,3 +52,23 @@ MAX_REAL_TRADE_SOL=0.05
 ```
 
 Redeploy. Wallets not on the allowlist see Real mode as view-only.
+
+## 7. Rewards (cashback)
+
+Cashback is a share of a platform fee you charge on real trades. It is **off** until you set:
+
+```
+PLATFORM_FEE_BPS=50              # 0.5%; Jupiter allows 50–255
+JUPITER_REFERRAL_ACCOUNT=<your referral account from referral.jup.ag>
+REWARDS_CASHBACK_PCT=25          # share of the fee credited back to the trader
+```
+
+The fee is added to each Jupiter order via `referralAccount`/`referralFee` and lands in your referral account. Each confirmed real trade records its fee; the Rewards page shows the trader's share as claimable SOL.
+
+**Paying claims.** "Claim SOL" creates a `pending` row in `reward_claims`. Pay it from your rewards wallet, then mark it paid:
+
+```sql
+update reward_claims set status = 'paid', paid_signature = '<tx signature>', updated_at = now() where id = '<claim id>';
+```
+
+Automatic payouts would need a hot wallet key on the server. That's deliberately not built; add it only with proper key management and limits.

@@ -152,6 +152,8 @@ export const trades = pgTable(
     /** Paper trades are always 'paper'. */
     simulated: boolean("simulated").notNull(),
     secondChanceShown: boolean("second_chance_shown").notNull().default(false),
+    /** Platform (Jupiter referral) fee charged on this trade; basis for cashback. */
+    referralFeeLamports: raw("referral_fee_lamports").notNull().default("0"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
   },
@@ -178,4 +180,20 @@ export const watchlist = pgTable(
     addedAt: timestamp("added_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.walletAddress, t.mint] })],
+);
+
+export const rewardClaims = pgTable(
+  "reward_claims",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    walletAddress: text("wallet_address").notNull().references(() => users.walletAddress, { onDelete: "cascade" }),
+    amountLamports: raw("amount_lamports").notNull(),
+    payoutAddress: text("payout_address").notNull(),
+    status: text("status", { enum: ["pending", "paid", "rejected"] }).notNull().default("pending"),
+    paidSignature: text("paid_signature"),
+    note: text("note"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("reward_claims_wallet_idx").on(t.walletAddress, t.createdAt)],
 );
