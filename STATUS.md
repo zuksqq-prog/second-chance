@@ -17,13 +17,22 @@ Built in an environment with **no access to npm or any external API**. That shap
 
 Run them: `npm test` (52 tests).
 
+### Verified on the live Vercel deployment (Oct 25, 2026)
+
+| Area | Result |
+|---|---|
+| `npm install` + `next build` + strict type check on Vercel | Pass (after 3 fixes: self-hosted fonts, zod output typing, deduped React types; Next upgraded to patched 15.5.x) |
+| Migrations against Neon Postgres on build | Pass |
+| `/api/health` | `ok: true`, database ok |
+| Discover feed (GeckoTerminal trending) | Live tokens, market caps, liquidity, volume, changes, txn bars render |
+| Token page (DexScreener snapshot) + chart (GeckoTerminal OHLCV) | Live candles, volume, market-cap scale, timeframes |
+| Buy panel + thesis form | Render with presets |
+
 ## Implemented but NOT verified here (needs your environment)
 
 | Area | Why unverified | How to verify |
 |---|---|---|
-| `npm install` / `next build` | npm registry blocked in the build sandbox. Versions are pinned to releases I know exist, but there is no lockfile yet. | `npm install && npm run typecheck && npm run build`. Fix any version or type drift first. |
 | UI rendering | Couldn't run Next.js, so no screenshot review of the terminal. | `npm run dev`, walk every view at desktop and phone width. |
-| DexScreener / GeckoTerminal live responses | Hosts blocked here; code follows their documented response shapes. | `npm run smoke`, then open Discover and a token. |
 | Helius RPC calls (balances, decimals, confirmations, tx effects, token security) | Blocked here. Standard JSON-RPC methods. | `npm run smoke` with `HELIUS_API_KEY`; connect a wallet in Real mode (view-only) and compare holdings to Solscan. |
 | Jupiter Swap v2 `/order` and `/execute` | Blocked here. Implemented from the current docs (developers.jup.ag, Oct 2026). | `npm run smoke` covers a quote. Execution: see checklist below. |
 | Wallet connection + message signing (Phantom, Solflare via Wallet Standard) | Needs a browser with a wallet extension. | Connect, sign in, refresh (session persists), switch wallets (session drops). |
