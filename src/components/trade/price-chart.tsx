@@ -51,7 +51,7 @@ export function PriceChart({ token, thesis, trades }: { token: TokenSnapshot; th
       if (disposed || !el.current) return;
       const chart = lc.createChart(el.current, {
         autoSize: true,
-        layout: { background: { type: lc.ColorType.Solid, color: C.bg }, textColor: C.text, fontFamily: "var(--font-plex), system-ui, sans-serif", fontSize: 11 },
+        layout: { background: { type: lc.ColorType.Solid, color: C.bg }, textColor: C.text, fontFamily: "'IBM Plex Sans', system-ui, sans-serif", fontSize: 11 },
         grid: { vertLines: { color: C.grid }, horzLines: { color: C.grid } },
         crosshair: { mode: lc.CrosshairMode.Normal, vertLine: { color: C.line, labelBackgroundColor: "#1d232d" }, horzLine: { color: C.line, labelBackgroundColor: "#1d232d" } },
         rightPriceScale: { borderColor: C.line },

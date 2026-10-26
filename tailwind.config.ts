@@ -22,8 +22,8 @@ const config: Config = {
         sell: { DEFAULT: "#ee5d66", soft: "#ee5d661a" },
       },
       fontFamily: {
-        sans: ["var(--font-plex)", "ui-sans-serif", "system-ui", "sans-serif"],
-        voice: ["var(--font-newsreader)", "ui-serif", "Georgia", "serif"],
+        sans: ["\"IBM Plex Sans\"", "ui-sans-serif", "system-ui", "sans-serif"],
+        voice: ["Newsreader", "ui-serif", "Georgia", "serif"],
       },
       fontSize: {
         "2xs": ["0.6875rem", { lineHeight: "1rem" }],

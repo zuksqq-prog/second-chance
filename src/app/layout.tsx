@@ -1,10 +1,11 @@
 import type { Metadata, Viewport } from "next";
-import { IBM_Plex_Sans, Newsreader } from "next/font/google";
+import "@fontsource/ibm-plex-sans/400.css";
+import "@fontsource/ibm-plex-sans/500.css";
+import "@fontsource/ibm-plex-sans/600.css";
+import "@fontsource/newsreader/400.css";
+import "@fontsource/newsreader/400-italic.css";
 import { Providers } from "@/components/providers";
 import "./globals.css";
-
-const plex = IBM_Plex_Sans({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-plex", display: "swap" });
-const newsreader = Newsreader({ subsets: ["latin"], style: ["normal", "italic"], weight: ["400", "500"], variable: "--font-newsreader", display: "swap" });
 
 export const metadata: Metadata = {
   title: "Second Chance",
@@ -15,7 +16,7 @@ export const viewport: Viewport = { themeColor: "#0c0f13", width: "device-width"
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${plex.variable} ${newsreader.variable}`}>
+    <html lang="en">
       <body>
         <Providers>{children}</Providers>
       </body>

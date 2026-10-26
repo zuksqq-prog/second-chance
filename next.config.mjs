@@ -26,6 +26,8 @@ const securityHeaders = [
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  // Lint runs separately (npm run lint); type errors still fail the build.
+  eslint: { ignoreDuringBuilds: true },
   images: { unoptimized: true },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
