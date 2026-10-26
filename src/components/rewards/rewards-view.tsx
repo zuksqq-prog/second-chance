@@ -225,7 +225,7 @@ function CardTitle({ icon, children }: { icon: React.ReactNode; children: React.
 function RewardsChart({ series }: { series: { day: string; sol: number }[] }) {
   const W = 520;
   const H = 230;
-  const pad = { l: 64, r: 10, t: 14, b: 26 };
+  const pad = { l: 64, r: 26, t: 14, b: 26 };
   const max = Math.max(...series.map((s) => s.sol), 0);
   const top = max > 0 ? niceMax(max) : 0.01;
   const x = (i: number) => pad.l + (i / Math.max(1, series.length - 1)) * (W - pad.l - pad.r);
@@ -262,7 +262,7 @@ function QuestRing({ q }: { q: Quest }) {
     <div className="flex flex-col items-center gap-3 text-center">
       <svg width="132" height="132" viewBox="0 0 132 132" aria-hidden>
         <circle cx="66" cy="66" r={r} fill="none" stroke="#1d232d" strokeWidth="9" />
-        <circle cx="66" cy="66" r={r} fill="none" stroke="#38c98b" strokeWidth="9" strokeLinecap="round" strokeDasharray={`${c * q.progress} ${c}`} transform="rotate(-90 66 66)" />
+        {q.progress > 0 && <circle cx="66" cy="66" r={r} fill="none" stroke="#38c98b" strokeWidth="9" strokeLinecap="round" strokeDasharray={`${c * q.progress} ${c}`} transform="rotate(-90 66 66)" />}
         <text x="66" y="71" textAnchor="middle" fontSize="15" fill="#b9c1cc">
           {q.nextPoints ? `+${q.nextPoints.toLocaleString()}` : "Done"}
         </text>
