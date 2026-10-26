@@ -7,7 +7,7 @@ import { fetcher, post } from "@/lib/client/api";
 import { useApp } from "@/lib/client/store";
 import { useSession } from "@/lib/client/session";
 import { shortAddr } from "@/lib/domain/format";
-import { TX_TIERS, VOLUME_TIERS } from "@/lib/domain/rewards";
+import { dailyCumulative, MIN_CLAIM_LAMPORTS, quests, TX_TIERS, VOLUME_TIERS } from "@/lib/domain/rewards";
 import { Empty } from "@/components/portfolio/positions-table";
 import { cn } from "@/lib/utils";
 
@@ -34,6 +34,22 @@ interface RewardsDTO {
 
 const sol = (lamports: string | bigint) => Number(lamports) / 1e9;
 
+/** Signed-out view: the same page at zero, so the program is visible before connecting. */
+function guestData(): RewardsDTO {
+  return {
+    program: { active: true, platformFeeBps: 0, cashbackPct: 0 },
+    earnedLamports: "0",
+    claimableLamports: "0",
+    paidLamports: "0",
+    minClaimLamports: MIN_CLAIM_LAMPORTS.toString(),
+    series: dailyCumulative([], 8, new Date()),
+    claims: [],
+    payoutAddress: "",
+    activity: { volumeSol: 0, txCount: 0 },
+    quests: quests(0, 0),
+  };
+}
+
 export function RewardsView() {
   const { status } = useSession();
   const { toast } = useApp();
@@ -41,9 +57,31 @@ export function RewardsView() {
   const [claiming, setClaiming] = useState(false);
   const [breakdown, setBreakdown] = useState(false);
 
-  if (status !== "signed_in") return <Empty text="Connect and sign in with your wallet to see your rewards." />;
-  if (error) return <Empty text={(error as Error).message} tone="error" />;
-  if (!data) return <Empty text="Loading rewards…" />;
+  const guest = status !== "signed_in";
+  if (!guest && error) return <Empty text={(error as Error).message} tone="error" />;
+  if (!guest && !data) return <Empty text="Loading rewards…" />;
+  return <RewardsPage data={guest ? guestData() : data!} guest={guest} claiming={claiming} setClaiming={setClaiming} breakdown={breakdown} setBreakdown={setBreakdown} mutate={mutate} toast={toast} />;
+}
+
+function RewardsPage({
+  data,
+  guest,
+  claiming,
+  setClaiming,
+  breakdown,
+  setBreakdown,
+  mutate,
+  toast,
+}: {
+  data: RewardsDTO;
+  guest: boolean;
+  claiming: boolean;
+  setClaiming: (v: boolean) => void;
+  breakdown: boolean;
+  setBreakdown: (f: (b: boolean) => boolean) => void;
+  mutate: () => Promise<unknown>;
+  toast: ReturnType<typeof useApp>["toast"];
+}) {
 
   const claimableSol = sol(data.claimableLamports);
   const canClaim = BigInt(data.claimableLamports) >= BigInt(data.minClaimLamports);
@@ -92,8 +130,11 @@ export function RewardsView() {
               </p>
             </div>
             <p className="mb-3 text-center text-xs text-muted">
-              Pays to your wallet <span className="text-fg-soft">{shortAddr(data.payoutAddress, 5)}</span>
+              {guest ? "Pays to the wallet you sign in with" : <>Pays to your wallet <span className="text-fg-soft">{shortAddr(data.payoutAddress, 5)}</span></>}
             </p>
+            {guest ? (
+              <p className="flex h-11 w-full items-center justify-center rounded-full border border-line-strong text-[14px] text-fg-soft">Connect wallet to claim</p>
+            ) : (
             <button
               type="button"
               onClick={claim}
@@ -102,7 +143,8 @@ export function RewardsView() {
             >
               {pending ? "Claim in progress" : claiming ? "Claiming…" : "Claim SOL"}
             </button>
-            {!canClaim && !pending && <p className="mt-2 text-center text-2xs text-muted">Minimum claim is 0.001 SOL.</p>}
+            )}
+            {!guest && !canClaim && !pending && <p className="mt-2 text-center text-2xs text-muted">Minimum claim is 0.001 SOL.</p>}
           </section>
 
           {/* Quests */}
@@ -163,7 +205,7 @@ export function RewardsView() {
         )}
 
         <p className="mt-4 text-2xs text-muted">
-          How it works: on real trades with a platform fee, {data.program.cashbackPct}% of that fee is credited to you as SOL cashback. Claims are paid from the rewards wallet to the wallet you're signed in with. Paper trades don't earn cashback or quest progress.
+          How it works: on real trades with a platform fee, {guest ? "a share" : `${data.program.cashbackPct}%`} of that fee is credited to you as SOL cashback. Claims are paid from the rewards wallet to the wallet you're signed in with. Paper trades don't earn cashback or quest progress.
         </p>
       </div>
     </div>
