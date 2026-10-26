@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
-import { Copy, Pause, Search, Users, Zap } from "lucide-react";
+import { Copy, Globe, Pause, Search, Send, SlidersHorizontal, Users, Zap } from "lucide-react";
 import { fetcher } from "@/lib/client/api";
 import { useApp } from "@/lib/client/store";
 import { useSession } from "@/lib/client/session";
@@ -13,6 +13,8 @@ import { age, compactUsd, shortAddr } from "@/lib/domain/format";
 import { toRaw } from "@/lib/domain/portfolio";
 import { TokenAvatar } from "@/components/ui/token-avatar";
 import { cn } from "@/lib/utils";
+import { countActive, matchesFilter } from "@/lib/domain/pulse-filters";
+import { emptyFilters, PulseFiltersPanel, sanitizeFilters, type PulseFilters } from "./pulse-filters-panel";
 
 interface PulseResponse {
   newPairs: PulseItem[];
@@ -23,6 +25,7 @@ interface PulseResponse {
 }
 
 type ColKey = "newPairs" | "finalStretch" | "migrated";
+const FILTERS_KEY = "sc.pulseFilters";
 const COLS: { key: ColKey; title: string; empty: string }[] = [
   { key: "newPairs", title: "New Pairs", empty: "Waiting for new launches…" },
   { key: "finalStretch", title: "Final Stretch", empty: "No pump.fun tokens are close to bonding right now." },
@@ -41,6 +44,25 @@ export function PulseBoard() {
   const { mode, toast } = useApp();
   const session = useSession();
   const { settings } = useSettings();
+  const [filters, setFilters] = useState<PulseFilters>(emptyFilters);
+  const [panel, setPanel] = useState<{ open: boolean; col: ColKey }>({ open: false, col: "newPairs" });
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(FILTERS_KEY);
+      const parsed = raw ? sanitizeFilters(JSON.parse(raw)) : null;
+      if (parsed) setFilters(parsed);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  const applyFilters = (f: PulseFilters) => {
+    setFilters(f);
+    try {
+      localStorage.setItem(FILTERS_KEY, JSON.stringify(f));
+    } catch {
+      /* ignore */
+    }
+  };
 
   const quickBuy = (t: PulseItem, amount: string) => {
     if (session.status !== "signed_in") return toast({ tone: "info", title: "Connect and sign in to quick buy" });
@@ -91,12 +113,15 @@ export function PulseBoard() {
             title={c.title}
             empty={c.empty}
             items={data?.[c.key]}
+            filter={filters[c.key]}
+            onOpenFilters={() => setPanel({ open: true, col: c.key })}
             onBuy={quickBuy}
             className={cn(mobileCol !== c.key && "max-md:hidden")}
             defaultAmount={c.key === "newPairs" ? "0.1" : c.key === "finalStretch" ? "0.25" : "0.5"}
           />
         ))}
       </div>
+      <PulseFiltersPanel open={panel.open} initialCol={panel.col} applied={filters} onApply={applyFilters} onClose={() => setPanel((p) => ({ ...p, open: false }))} />
     </div>
   );
 }
@@ -106,6 +131,8 @@ function Column({
   title,
   empty,
   items,
+  filter,
+  onOpenFilters,
   onBuy,
   className,
   defaultAmount,
@@ -114,6 +141,8 @@ function Column({
   title: string;
   empty: string;
   items: PulseItem[] | undefined;
+  filter: PulseFilters[ColKey];
+  onOpenFilters: () => void;
   onBuy: (t: PulseItem, amount: string) => void;
   className?: string;
   defaultAmount: string;
@@ -145,10 +174,14 @@ function Column({
   if (!hover) frozen.current = items;
   const shown = hover ? frozen.current : items;
 
+  const active = countActive(filter).total;
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
-    return (shown ?? []).filter((t) => !s || t.symbol.toLowerCase().includes(s) || t.name.toLowerCase().includes(s) || t.mint.toLowerCase() === s);
-  }, [shown, q]);
+    const now = Date.now();
+    return (shown ?? []).filter(
+      (t) => matchesFilter(t, filter, now) && (!s || t.symbol.toLowerCase().includes(s) || t.name.toLowerCase().includes(s) || t.mint.toLowerCase() === s),
+    );
+  }, [shown, q, filter]);
 
   return (
     <section className={cn("flex min-h-0 flex-col overflow-hidden rounded-lg border border-line bg-ink-1", className)} aria-label={title}>
@@ -181,10 +214,23 @@ function Column({
             className="w-9 bg-transparent text-xs num focus:outline-none"
           />
         </label>
+        <button type="button" onClick={onOpenFilters} aria-label={`${title} filters`} title="Filters" className="relative rounded p-1 text-fg-soft hover:bg-ink-3 hover:text-fg">
+          <SlidersHorizontal size={15} />
+          {active > 0 && <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-buy" />}
+        </button>
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
         {!shown && Array.from({ length: 6 }).map((_, i) => <div key={i} className="m-3 h-[92px] animate-pulse rounded bg-ink-2" />)}
-        {shown && filtered.length === 0 && <p className="p-6 text-center text-xs text-muted">{q ? `Nothing matches “${q}”.` : empty}</p>}
+        {shown && filtered.length === 0 && (
+          <p className="p-6 text-center text-xs text-muted">
+            {q ? `Nothing matches “${q}”.` : active ? `No tokens match your ${active} filter${active === 1 ? "" : "s"} right now.` : empty}
+            {active > 0 && (
+              <button type="button" onClick={onOpenFilters} className="mt-2 block w-full text-signal underline">
+                Edit filters
+              </button>
+            )}
+          </p>
+        )}
         {filtered.map((t) => (
           <Card key={t.mint} t={t} amount={amount} onBuy={onBuy} showProgress={id !== "migrated"} />
         ))}
@@ -253,6 +299,32 @@ function Card({ t, amount, onBuy, showProgress }: { t: PulseItem; amount: string
             </span>
           )}
         </div>
+        {t.socials && (t.socials.twitter || t.socials.website || t.socials.telegram || t.socials.dexPaid) && (
+          <div className="mt-1 flex items-center gap-2 text-xs">
+            {t.socials.twitter && (
+              <a
+                href={t.socials.twitter.startsWith("http") ? t.socials.twitter : `https://x.com/${t.socials.twitter}`}
+                target="_blank"
+                rel="noreferrer nofollow"
+                onClick={(e) => e.stopPropagation()}
+                className="max-w-[120px] truncate text-[#7cc4ff] hover:underline"
+              >
+                {t.socials.twitter.startsWith("http") ? "X link" : `@${t.socials.twitter}`}
+              </a>
+            )}
+            {t.socials.website && (
+              <a href={t.socials.website} target="_blank" rel="noreferrer nofollow" onClick={(e) => e.stopPropagation()} aria-label="Website" className="text-muted hover:text-fg">
+                <Globe size={12} />
+              </a>
+            )}
+            {t.socials.telegram && (
+              <a href={t.socials.telegram} target="_blank" rel="noreferrer nofollow" onClick={(e) => e.stopPropagation()} aria-label="Telegram" className="text-muted hover:text-fg">
+                <Send size={12} />
+              </a>
+            )}
+            {t.socials.dexPaid && <span className="rounded-sm border border-buy/40 px-1 text-[10px] text-buy" title="Paid DexScreener profile">DS</span>}
+          </div>
+        )}
         <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
           <Chip label="5m" v={t.priceChange.m5} />
           <Chip label="1h" v={t.priceChange.h1} />

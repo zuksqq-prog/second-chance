@@ -12,9 +12,9 @@ import {
   type DiscoveryFilter,
   type TokenSnapshot,
 } from "@/lib/domain/market";
-import { isSolanaAddress } from "@/lib/domain/sanitize";
+import { isSolanaAddress, safeExternalUrl } from "@/lib/domain/sanitize";
 import { mergeTrades, parseGeckoTrades, type LiveTrade } from "@/lib/domain/live-trades";
-import { classifyPulse, pulseItemFromGecko, type PulseColumns, type PulseItem } from "@/lib/domain/pulse";
+import { classifyPulse, pulseItemFromGecko, type PulseColumns, type PulseItem, type Socials } from "@/lib/domain/pulse";
 import { bondingProgress } from "@/lib/domain/pump-curve";
 import { getBondingCurves } from "./pump";
 
@@ -276,5 +276,73 @@ export async function getPulse(): Promise<PulseColumns & { updatedAt: number; no
   }
 
   const cols = classifyPulse(newest, pumpTop, [...newest, ...swapTop], Date.now());
+  try {
+    const shown = [...cols.newPairs, ...cols.finalStretch, ...cols.migrated];
+    const socials = await getSocials(shown.map((t) => t.mint));
+    for (const t of shown) t.socials = socials.get(t.mint) ?? null;
+  } catch {
+    notes.push("Social links are temporarily unavailable.");
+  }
   return { ...cols, updatedAt: Date.now(), notes };
+}
+
+// ---------------------------------------------------------------- socials / Dex Paid (DexScreener profiles)
+
+function twitterHandle(url: string): string | null {
+  try {
+    const u = new URL(url);
+    if (!/(^|\.)(x|twitter)\.com$/i.test(u.hostname)) return null;
+    const first = u.pathname.split("/").filter(Boolean)[0] ?? "";
+    if (!first || ["i", "search", "home", "intent", "hashtag"].includes(first.toLowerCase())) return u.toString();
+    return /^[A-Za-z0-9_]{1,15}$/.test(first) ? first : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Socials and paid-profile status for up to ~200 mints. Each mint is cached
+ * for 60 s; only missing mints are fetched, 30 per DexScreener request.
+ */
+export async function getSocials(mints: string[]): Promise<Map<string, Socials | null>> {
+  const out = new Map<string, Socials | null>();
+  const missing: string[] = [];
+  for (const m of [...new Set(mints.filter(isSolanaAddress))].slice(0, 210)) {
+    const hit = sharedCache.peek<{ v: Socials | null; t: number }>(`socials:${m}`);
+    if (hit && Date.now() - hit.t < 60_000) out.set(m, hit.v);
+    else missing.push(m);
+  }
+  for (let i = 0; i < missing.length; i += 30) {
+    const chunk = missing.slice(i, i + 30);
+    let pairs: any[] = [];
+    try {
+      pairs = await getJson("dexscreener", `${DS}/tokens/v1/solana/${chunk.join(",")}`);
+    } catch {
+      continue; // leave unknown; retried next refresh
+    }
+    const found = new Map<string, Socials>();
+    for (const p of Array.isArray(pairs) ? pairs : []) {
+      const mint = p?.baseToken?.address;
+      if (!chunk.includes(mint)) continue;
+      const info = p?.info;
+      const prev = found.get(mint) ?? { twitter: null, website: null, telegram: null, dexPaid: false };
+      if (info) {
+        prev.dexPaid = prev.dexPaid || !!(info.imageUrl || info.header || info.websites?.length || info.socials?.length);
+        for (const w of info.websites ?? []) prev.website ??= safeExternalUrl(w?.url);
+        for (const s of info.socials ?? []) {
+          const url = safeExternalUrl(s?.url);
+          if (!url) continue;
+          if (s?.type === "twitter") prev.twitter ??= twitterHandle(url);
+          if (s?.type === "telegram") prev.telegram ??= url;
+        }
+      }
+      found.set(mint, prev);
+    }
+    for (const m of chunk) {
+      const v = found.get(m) ?? null;
+      sharedCache.set(`socials:${m}`, { v, t: Date.now() }, 120_000);
+      out.set(m, v);
+    }
+  }
+  return out;
 }
