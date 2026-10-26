@@ -17,7 +17,7 @@
     "db:generate": "drizzle-kit generate",
     "db:studio": "drizzle-kit studio",
     "smoke": "tsx scripts/smoke-market.ts",
-    "vercel-build": "tsx scripts/migrate.ts && next build"
+    "vercel-build": "tsx scripts/migrate.ts && (tsc --noEmit --pretty false | sed 's/^/TSC> /' || true) && next build"
   },
   "dependencies": {
     "@fontsource/ibm-plex-sans": "^5.0.0",

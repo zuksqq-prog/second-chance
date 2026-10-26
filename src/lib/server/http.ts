@@ -1,6 +1,6 @@
 import "server-only";
 import { NextResponse, type NextRequest } from "next/server";
-import { ZodError, type ZodType } from "zod";
+import { ZodError, type ZodTypeAny, type output } from "zod";
 import { IntentError } from "@/lib/domain/trade-intent";
 import { apiLimiter } from "./rate-limit";
 import { UpstreamError } from "./market-data";
@@ -78,7 +78,8 @@ export function toErrorResponse(e: unknown, req: NextRequest, started: number): 
   return json({ error: "Something went wrong on our side. Try again.", code: "internal" }, 500);
 }
 
-export async function body<T>(req: NextRequest, schema: ZodType<T>): Promise<T> {
+/** Parse a JSON body; returns the schema's OUTPUT type (defaults applied, transforms run). */
+export async function body<S extends ZodTypeAny>(req: NextRequest, schema: S): Promise<output<S>> {
   let data: unknown;
   try {
     data = await req.json();
